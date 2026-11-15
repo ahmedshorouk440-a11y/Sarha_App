@@ -86,14 +86,18 @@ router.patch("/identity-requests/:id", auth, async (req, res, next) => {
     next(error);
   }
 });
-router.post("/conversations/:id/messages" ,auth , async(req, res, next)=>{
-  try{
-    let data = await SendConversationMessage(req.params.id, req.user.id, req.body)
-    SuccessResponce({res, data})
-  }catch(error){
-     next(error)
+router.post("/conversations/:id/messages", auth, async (req, res, next) => {
+  try {
+    let data = await SendConversationMessage(
+      req.params.id,
+      req.user.id,
+      req.body,
+    );
+    SuccessResponce({ res, data });
+  } catch (error) {
+    next(error);
   }
-})
+});
 router.get("/conversations/:id/messages", auth, async (req, res, next) => {
   try {
     let data = await GetConversationMessages(req.params.id, req.user.id);

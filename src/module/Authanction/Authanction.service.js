@@ -1,4 +1,3 @@
-
 import {
   BadRequestExption,
   NotFoundException,
@@ -11,9 +10,19 @@ import jwt from "jsonwebtoken";
 import { OAuth2Client } from "google-auth-library";
 
 import { emailEvent } from "../../common/utiles/Email/email.event.js";
-import { EmailSubjectEnum, ProviderEnum, REFRESH_TOKEN_EXPIRES_IN } from "../../common/Enum/enums.js";
+import {
+  EmailSubjectEnum,
+  ProviderEnum,
+  REFRESH_TOKEN_EXPIRES_IN,
+} from "../../common/Enum/enums.js";
 import { createOtp } from "../../common/utiles/Email/otp.js";
-import { del, get, set } from "../../common/Services/Cash/index.js";
+import {
+  del,
+  expire,
+  get,
+  incrBy,
+  set,
+} from "../../common/Services/Cash/index.js";
 import { sendEmail, UserEmailKey } from "../../common/utiles/send.email.js";
 import { verifyEmailTemplete } from "../../common/utiles/Email/email.templates.js";
 import { generateAndSendOtp } from "../../middleWare/generateAndSenOtp/generateOtp.js";
@@ -34,29 +43,53 @@ async function verifyGoogleAccount(idToken) {
   if (!payload.email_verified) BadRequestExption("Email Not Verifed");
   return payload;
 }
+const checkOtpTrials = async ({
+  email,
+  subject,
+  maxTrials = 3,
+  blockInSeconds = 300,
+  windowSeconds = 600,
+}) => {
+  const trialsKey = `${UserEmailKey({ email, subject })}::TRIALS`;
 
-export const SignUp = async (body , file) => {
-  const { FullName, age, email, password, uniqueName  } = body;
-let profileImage;
-if(file){
- profileImage = file?.path
-}
-  
+  const oldTrials = Number((await get({ key: trialsKey })) ?? 0);
+  if (oldTrials >= maxTrials) {
+    throw BadRequestExption(
+      "Maximum OTP trials reached. Please try again later",
+    );
+  }
+
+  const currentTrials = Number(await incrBy({ key: trialsKey }));
+
+  if (currentTrials === 1) {
+    await expire({ key: trialsKey, ttl: windowSeconds });
+  }
+
+  if (currentTrials === maxTrials) {
+    await expire({ key: trialsKey, ttl: blockInSeconds });
+  }
+};
+
+export const SignUp = async (body, file) => {
+  const { FullName, age, email, password, uniqueName } = body;
+  let profileImage;
+  if (file) {
+    profileImage = file?.path;
+  }
+
   const emailExists = await AuthModel.findOne({ email });
   if (emailExists) throw BadRequestExption("User Aleardy exists");
 
- 
   const nameExists = await AuthModel.findOne({ uniqueName });
   if (nameExists) throw BadRequestExption("unique name is aleardy exists");
 
-  
   const data = await AuthModel.create({
     FullName,
     age,
     email,
     password: await hash(password),
     uniqueName,
-     profileImage:profileImage
+    profileImage: profileImage,
   });
 
   const code = createOtp();
@@ -121,8 +154,7 @@ export const VerifyForgetPassword = async ({ otp, email }) => {
     throw BadRequestExption("Invalid Otp");
   }
   return data;
-
-}
+};
 
 export const resetforgetPassword = async ({ otp, email, password }) => {
   const account = await VerifyForgetPassword({ otp, email });
@@ -137,16 +169,6 @@ export const resetforgetPassword = async ({ otp, email, password }) => {
   });
   return { message: "Password reset successfully" };
 };
-
-
-
-
-
-
-
-
-
-
 export async function LoginWithGoogle(idToken) {
   const payload = await verifyGoogleAccount(idToken);
 
@@ -168,7 +190,6 @@ export async function LoginWithGoogle(idToken) {
   };
 }
 export const LoginAuth = async (body) => {
- 
   const { email, password } = body;
 
   const user = await AuthModel.findOne({
@@ -203,9 +224,9 @@ export const RequestForgetPassword = async ({ email }) => {
     confirmEmail: { $ne: null },
   });
   if (!account) throw NotFoundException("Fail to find user account");
+  await checkOtpTrials({ email, subject: EmailSubjectEnum.FORGET_PASSWORD });
   const otp = String(await createOtp());
 
-  
   await set({
     key: UserEmailKey({ email, subject: EmailSubjectEnum.FORGET_PASSWORD }),
     value: await hash(otp),
@@ -271,9 +292,6 @@ export const GetAllUser = async (quary) => {
     throw error;
   }
 };
-
-
-
 
 export const enable2FA = async (user) => {
   const existUser = await AuthModel.findById(user.id);
@@ -341,11 +359,10 @@ export const checkTwoStepAuth = async (req, res, next) => {
   }
 };
 
+export const Logout = async (payload) => {
+  const consumedTime = Math.ceil(Date.now() / 1000) - payload.iat;
 
-export const Logout=async(payload)=>{
-  const consumedTime = (Math.ceil(Date.now()/ 1000) - payload.iat) 
-  
-  const ttl = REFRESH_TOKEN_EXPIRES_IN - consumedTime
+  const ttl = REFRESH_TOKEN_EXPIRES_IN - consumedTime;
   if (ttl > 0) {
     await set({
       key: `User::${payload.id}::Revoke_Token::${payload.jti}`,

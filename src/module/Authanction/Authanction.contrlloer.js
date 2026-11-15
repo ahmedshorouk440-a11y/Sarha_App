@@ -1,7 +1,7 @@
 import { Router } from "express";
 
 import {
-    checkTwoStepAuth,
+  checkTwoStepAuth,
   ConfirmEmail,
   DeleteUser,
   enable2FA,
@@ -20,7 +20,6 @@ import {
 import { auth } from "../../middleWare/Token.middleware/index.js";
 import { SuccessResponce } from "../../common/Success/index.js";
 import { upload } from "../../common/Multer/index.js";
-
 
 const router = Router();
 router.post("/SignUp", upload().single("image"), async (req, res, next) => {
@@ -135,14 +134,13 @@ router.get("/GetAlluser", auth, async (req, res, next) => {
   }
 });
 
-router.post("/LogOut" ,auth ,async(req, res,next )=>{
-  try{
-   let data = await Logout(req.user)
-   SuccessResponce({res , data})
-  }catch(error){
-    next(error)
-
+router.post("/LogOut", auth, async (req, res, next) => {
+  try {
+    let data = await Logout(req.user);
+    SuccessResponce({ res, data });
+  } catch (error) {
+    next(error);
   }
-})
+});
 
 export default router;

@@ -5,15 +5,23 @@ import cors from "cors";
 import AuthRouter from './module/Authanction/Authanction.contrlloer.js'
 import { main } from './database/connection.js';
 import { handler } from './middleWare/GlobalError/index.js';
-import MessageRouter from './module/message/message.contrlloer.js'
+import MessageRouter from './module/message/message.contrlloer.js';
 import {fileURLToPath} from 'url'
+import rateLimit from 'express-rate-limit';
 import path from "path"
 const app = express()
+app.use(cors({ origin: "http://localhost:5173"}))  
+const limiter = rateLimit({
+    windowMs:10*60*1000,
+    limit:200,
+    standardHeaders: true, 
+    message:{message : "Too many requests, please try again after 10 minutes"}   
+}) 
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const UploadsPath = path.resolve(__dirname , '../Uploads')
-app.use(cors({ origin: "http://localhost:5173"}))   
+app.use(limiter)
 app.use(express.json())
 app.use(AuthRouter)
 app.use(MessageRouter)

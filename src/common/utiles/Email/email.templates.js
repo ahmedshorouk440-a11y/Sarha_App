@@ -252,10 +252,6 @@ export const templates={
   },
 }
 
-
-
-
-
 export const verifyEmailTemplete =(data)=>{
     return templates[data.subject](data);
 
