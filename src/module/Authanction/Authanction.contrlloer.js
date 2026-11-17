@@ -134,7 +134,7 @@ router.get("/GetAlluser", auth, async (req, res, next) => {
   }
 });
 
-router.post("/LogOut", auth, async (req, res, next) => {
+router.post("/Logout", auth, async (req, res, next) => {
   try {
     let data = await Logout(req.user);
     SuccessResponce({ res, data });
